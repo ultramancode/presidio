@@ -8,6 +8,7 @@ from presidio_analyzer.input_validation import ConfigurationValidator
 from presidio_analyzer.nlp_engine import (
     NerModelConfiguration,
     NlpEngine,
+    NoOpNlpEngine,
     SlimSpacyNlpEngine,
     SpacyNlpEngine,
     StanzaNlpEngine,
@@ -21,7 +22,8 @@ class NlpEngineProvider:
     """Create different NLP engines from configuration.
 
     :param nlp_engines: List of available NLP engines
-    Default: (SpacyNlpEngine, StanzaNlpEngine)
+    Default: (SpacyNlpEngine, StanzaNlpEngine, TransformersNlpEngine,
+    SlimSpacyNlpEngine, NoOpNlpEngine)
     :param nlp_configuration: Dict containing nlp configuration
     :example: configuration:
             {
@@ -30,7 +32,7 @@ class NlpEngineProvider:
                             "model_name": "en_core_web_lg"
                           }]
             }
-    Nlp engine names available by default: spacy, stanza.
+    Nlp engine names available by default: spacy, stanza, transformers, slim, no_op.
     :param conf_file: Path to yaml file containing nlp engine configuration.
     """
 
@@ -46,6 +48,7 @@ class NlpEngineProvider:
                 StanzaNlpEngine,
                 TransformersNlpEngine,
                 SlimSpacyNlpEngine,
+                NoOpNlpEngine,
             )
 
         self.nlp_engines = {
@@ -102,7 +105,10 @@ class NlpEngineProvider:
         nlp_engine_class = self.nlp_engines[nlp_engine_name]
         nlp_models = self.nlp_configuration["models"]
 
-        if nlp_engine_name == SlimSpacyNlpEngine.engine_name:
+        if nlp_engine_name == NoOpNlpEngine.engine_name:
+            self._validate_no_op_configuration()
+            engine = nlp_engine_class(models=nlp_models)
+        elif nlp_engine_name == SlimSpacyNlpEngine.engine_name:
             generic_tokenizer = self.nlp_configuration.get("generic_tokenizer")
             engine = nlp_engine_class(
                 models=nlp_models, generic_tokenizer=generic_tokenizer
@@ -126,3 +132,12 @@ class NlpEngineProvider:
             f"Loaded models: {list(engine.nlp.keys())}"
         )
         return engine
+
+    def _validate_no_op_configuration(self) -> None:
+        valid_keys = {"nlp_engine_name", "models"}
+        unsupported_keys = set(self.nlp_configuration.keys()) - valid_keys
+        if unsupported_keys:
+            raise ValueError(
+                "NoOpNlpEngine configuration does not support these keys: "
+                f"{sorted(unsupported_keys)}"
+            )
